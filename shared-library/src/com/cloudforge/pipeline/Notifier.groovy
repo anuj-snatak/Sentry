@@ -22,19 +22,27 @@ class Notifier implements Serializable {
     }
 
     void slack(String webhookCredentialId, String status, String message) {
-        def color = STATUS_COLORS[status] ?: STATUS_COLORS['info']
-        def template = script.libraryResource('com/cloudforge/pipeline/slack-message-template.json')
+        // Slack notification is optional infrastructure: a missing
+        // webhook credential (nobody's configured Slack for this
+        // Jenkins yet) must not fail the build's post{} block and mask
+        // the actual success/failure result the build already has.
+        try {
+            def color = STATUS_COLORS[status] ?: STATUS_COLORS['info']
+            def template = script.libraryResource('com/cloudforge/pipeline/slack-message-template.json')
 
-        def payload = template
-            .replace('__COLOR__', color)
-            .replace('__MESSAGE__', message.replace('"', '\\"').replace('\n', '\\n'))
-            .replace('__JOB_NAME__', script.env.JOB_NAME ?: 'cloudforge')
-            .replace('__BUILD_URL__', script.env.BUILD_URL ?: '')
+            def payload = template
+                .replace('__COLOR__', color)
+                .replace('__MESSAGE__', message.replace('"', '\\"').replace('\n', '\\n'))
+                .replace('__JOB_NAME__', script.env.JOB_NAME ?: 'cloudforge')
+                .replace('__BUILD_URL__', script.env.BUILD_URL ?: '')
 
-        script.withCredentials([script.string(credentialsId: webhookCredentialId, variable: 'SLACK_WEBHOOK_URL')]) {
-            script.writeFile file: '.slack-payload.json', text: payload
-            script.sh 'curl -fsS -X POST -H "Content-Type: application/json" -d @.slack-payload.json "$SLACK_WEBHOOK_URL"'
-            script.sh 'rm -f .slack-payload.json'
+            script.withCredentials([script.string(credentialsId: webhookCredentialId, variable: 'SLACK_WEBHOOK_URL')]) {
+                script.writeFile file: '.slack-payload.json', text: payload
+                script.sh 'curl -fsS -X POST -H "Content-Type: application/json" -d @.slack-payload.json "$SLACK_WEBHOOK_URL"'
+                script.sh 'rm -f .slack-payload.json'
+            }
+        } catch (Exception e) {
+            script.echo "notifySlack: skipped (${e.class.simpleName}: ${e.message}). Configure the '${webhookCredentialId}' credential to enable Slack notifications."
         }
     }
 
