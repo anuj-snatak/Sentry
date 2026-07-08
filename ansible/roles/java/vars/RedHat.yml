@@ -1,0 +1,4 @@
+---
+# Amazon Linux 2023's own repos carry Amazon Corretto builds directly —
+# no third-party repo needs to be added.
+java_package: "java-{{ java_version }}-amazon-corretto"

@@ -1,0 +1,12 @@
+{{ ansible_managed | comment }}
+# Included by the OS's main /etc/ssh/sshd_config via an Include directive
+# (default on OpenSSH 8.2+ / AL2023 / Ubuntu 20.04+).
+PermitRootLogin {{ 'yes' if ssh_permit_root_login else 'no' }}
+PasswordAuthentication {{ 'yes' if ssh_password_authentication else 'no' }}
+X11Forwarding {{ 'yes' if ssh_x11_forwarding else 'no' }}
+MaxAuthTries {{ ssh_max_auth_tries }}
+ClientAliveInterval {{ ssh_client_alive_interval }}
+ClientAliveCountMax {{ ssh_client_alive_count_max }}
+PermitEmptyPasswords no
+IgnoreRhosts yes
+HostbasedAuthentication no

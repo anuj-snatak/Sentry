@@ -1,0 +1,5 @@
+---
+# Debian/Ubuntu's own repos carry OpenJDK rather than Corretto; both are
+# TCK-certified OpenJDK builds and are interchangeable for application
+# purposes.
+java_package: "openjdk-{{ java_version }}-jdk"

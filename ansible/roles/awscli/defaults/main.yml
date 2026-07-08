@@ -1,0 +1,3 @@
+---
+awscli_install_dir: /opt/aws-cli
+awscli_bin_symlink_dir: /usr/local/bin

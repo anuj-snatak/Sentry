@@ -1,0 +1,12 @@
+---
+logrotate_app_retention_days: 14
+
+logrotate_targets:
+  - name: cloudforge-app
+    path: "{{ app_install_dir | default('/opt/cloudforge-app') }}/logs/*.log"
+    rotate_days: "{{ logrotate_app_retention_days }}"
+    postrotate: ""
+  - name: nginx
+    path: "/var/log/nginx/*.log"
+    rotate_days: 14
+    postrotate: "systemctl reload nginx >/dev/null 2>&1 || true"

@@ -1,0 +1,6 @@
+---
+nodejs_major_version: "20"
+# When false, installs whatever nodejs/npm version the OS's own repos
+# carry (simplest, always works, version not guaranteed). When true,
+# adds the official NodeSource repo first to pin nodejs_major_version.
+node_use_nodesource_repo: true

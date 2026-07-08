@@ -1,0 +1,11 @@
+---
+# Full convergence: bootstrap + application deployment in one run, in
+# the correct order. The Jenkins pipeline normally runs bootstrap.yml
+# and deploy-app.yml as separate stages for clearer per-stage status
+# and the ability to re-run just one of them; this playbook is for
+# local end-to-end testing and initial cluster stand-up.
+- name: Import bootstrap stage
+  ansible.builtin.import_playbook: bootstrap.yml
+
+- name: Import application deployment stage
+  ansible.builtin.import_playbook: deploy-app.yml

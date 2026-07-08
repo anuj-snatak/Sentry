@@ -1,0 +1,38 @@
+---
+- name: Load OS-family-specific settings
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- name: Install nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Remove Debian's default enabled site (avoids a conflicting default_server on :80)
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Deploy main nginx.conf
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "nginx -t -c %s"
+  notify: Reload nginx
+
+- name: Deploy reverse-proxy vhost for the application
+  ansible.builtin.template:
+    src: app.conf.j2
+    dest: /etc/nginx/conf.d/app.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Enable and start nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: started

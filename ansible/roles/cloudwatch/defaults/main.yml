@@ -1,0 +1,12 @@
+---
+cloudwatch_namespace: "CloudForge"
+cloudwatch_metrics_collection_interval: 60
+cloudwatch_log_group_prefix: "/{{ project_name | default('cloudforge') }}/{{ environment_name | default('dev') }}"
+
+cloudwatch_logs_to_collect:
+  - file_path: /var/log/nginx/access.log
+    log_group_suffix: nginx-access
+  - file_path: /var/log/nginx/error.log
+    log_group_suffix: nginx-error
+  - file_path: "{{ app_install_dir | default('/opt/cloudforge-app') }}/logs/app.log"
+    log_group_suffix: app

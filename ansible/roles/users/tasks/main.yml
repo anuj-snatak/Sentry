@@ -1,0 +1,43 @@
+---
+- name: Create administrator group
+  ansible.builtin.group:
+    name: "{{ admin_group }}"
+    state: present
+
+- name: Create administrator accounts
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: "{{ admin_group }}"
+    append: true
+    shell: "{{ users_shell }}"
+    create_home: true
+    state: present
+  loop: "{{ admin_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Authorize each administrator's SSH public key
+  ansible.posix.authorized_key:
+    user: "{{ item.name }}"
+    key: "{{ item.ssh_public_key }}"
+    state: present
+  loop: "{{ admin_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.ssh_public_key is defined and item.ssh_public_key | length > 0
+
+# NOPASSWD sudo for the admin group is a deliberate tradeoff: this
+# platform's primary access path is SSM Session Manager (already
+# IAM-authenticated and CloudTrail-logged per session), so a second
+# interactive sudo password prompt on top of that adds friction without
+# adding real security. Tighten this per-command if your org's policy
+# requires it.
+- name: Grant the administrator group passwordless sudo
+  ansible.builtin.template:
+    src: admin-group-sudoers.j2
+    dest: /etc/sudoers.d/90-{{ admin_group }}
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"
+  when: admin_users | length > 0

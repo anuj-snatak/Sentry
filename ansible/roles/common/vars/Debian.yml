@@ -1,0 +1,13 @@
+---
+common_packages:
+  - curl
+  - wget
+  - unzip
+  - tar
+  - jq
+  - git
+  - vim
+  - chrony
+  - ca-certificates
+  - apt-transport-https
+common_ntp_service: chrony

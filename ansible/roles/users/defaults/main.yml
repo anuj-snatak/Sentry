@@ -1,0 +1,5 @@
+---
+admin_group: cloudforge-admins
+admin_users: []
+# Each entry: { name: "jdoe", ssh_public_key: "ssh-ed25519 AAAA...", sudo_nopasswd: true }
+users_shell: /bin/bash

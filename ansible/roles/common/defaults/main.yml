@@ -1,0 +1,4 @@
+---
+common_timezone: "UTC"
+common_ntp_enabled: true
+common_extra_packages: [] # additional packages a caller wants installed alongside the baseline set

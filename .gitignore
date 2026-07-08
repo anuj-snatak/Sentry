@@ -1,0 +1,56 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+.terraform.lock.hcl
+
+# Keep example/non-secret tfvars, ignore anything explicitly local/secret
+*.auto.tfvars
+!terraform/environments/*/terraform.tfvars
+*.secret.tfvars
+
+# Ansible
+ansible/inventories/*/hosts.yml
+!ansible/inventories/*/hosts.yml.example
+*.retry
+ansible/**/*.vault
+.vault_pass*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+*.log
+
+# Reports / generated artifacts
+reports/
+*.report.json
+*.report.html
+
+# Secrets / credentials (defense in depth - none should ever be committed)
+*.pem
+*.key
+.env
+.env.*
+credentials.json
+secrets.yml
+secrets.yaml
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

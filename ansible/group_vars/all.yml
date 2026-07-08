@@ -1,0 +1,47 @@
+---
+# Global role configuration shared by every environment. Loaded
+# explicitly via `vars_files` in each playbook (see playbooks/site.yml)
+# rather than relying on Ansible's inventory-relative auto-discovery,
+# so these values apply no matter which environment's inventory is
+# active. Per-environment overrides live in group_vars/<environment>.yml
+# and are loaded the same explicit way, after this file, so they win.
+
+project_name: cloudforge
+
+# --- users role ---
+admin_group: cloudforge-admins
+admin_users: [] # populate via group_vars/<env>.yml or -e; empty here so no account is created platform-wide by accident
+
+# --- security / hardening / firewall roles ---
+ssh_permit_root_login: false
+ssh_password_authentication: false
+fail2ban_enabled: true
+fail2ban_bantime: 3600
+fail2ban_findtime: 600
+fail2ban_maxretry: 5
+
+# --- docker role ---
+docker_users: [] # non-root users to add to the docker group; the app itself runs as a dedicated service user, not a login user
+docker_log_max_size: "10m"
+docker_log_max_file: "3"
+
+# --- nginx role ---
+nginx_worker_connections: 1024
+
+# --- node_exporter role ---
+node_exporter_version: "1.8.2"
+node_exporter_port: 9100
+
+# --- cloudwatch role ---
+cloudwatch_agent_version: latest
+cloudwatch_namespace: "CloudForge"
+
+# --- application role ---
+app_name: cloudforge-app
+app_port: 8080
+app_health_check_path: /health
+app_user: cloudforge
+app_install_dir: /opt/cloudforge-app
+
+# --- logrotate role ---
+logrotate_app_retention_days: 14

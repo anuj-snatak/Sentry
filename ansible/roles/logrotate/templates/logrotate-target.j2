@@ -1,0 +1,16 @@
+{{ ansible_managed | comment }}
+{{ item.path }} {
+    daily
+    rotate {{ item.rotate_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    dateext
+{% if item.postrotate %}
+    sharedscripts
+    postrotate
+        {{ item.postrotate }}
+    endscript
+{% endif %}
+}

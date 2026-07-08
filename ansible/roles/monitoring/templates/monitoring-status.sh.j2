@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+{{ ansible_managed | comment('#') }}
+# Quick health summary of this host's monitoring stack. Run manually
+# over SSM Session Manager, or wire into healthCheck.groovy for a
+# richer per-instance signal than "is the ALB target healthy".
+
+set -uo pipefail
+
+echo "== amazon-cloudwatch-agent =="
+systemctl is-active amazon-cloudwatch-agent || true
+
+echo "== node_exporter =="
+systemctl is-active node_exporter || true
+curl -fsS "http://127.0.0.1:{{ node_exporter_port }}/metrics" >/dev/null \
+  && echo "node_exporter: metrics endpoint OK" \
+  || echo "node_exporter: metrics endpoint UNREACHABLE"

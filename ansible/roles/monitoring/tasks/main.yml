@@ -1,0 +1,8 @@
+---
+- name: Deploy monitoring status helper script
+  ansible.builtin.template:
+    src: monitoring-status.sh.j2
+    dest: /usr/local/bin/monitoring-status.sh
+    owner: root
+    group: root
+    mode: "0755"

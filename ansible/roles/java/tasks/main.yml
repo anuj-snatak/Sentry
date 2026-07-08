@@ -1,0 +1,23 @@
+---
+- name: Load OS-family-specific package name
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- name: Install Java
+  ansible.builtin.package:
+    name: "{{ java_package }}"
+    state: present
+
+- name: Resolve the real java binary path
+  ansible.builtin.command: readlink -f /usr/bin/java
+  register: cloudforge_java_binary
+  changed_when: false
+
+- name: Derive and export JAVA_HOME for interactive and non-interactive shells
+  ansible.builtin.copy:
+    dest: /etc/profile.d/java_home.sh
+    content: |
+      export JAVA_HOME="{{ cloudforge_java_binary.stdout | dirname | dirname }}"
+      export PATH="$JAVA_HOME/bin:$PATH"
+    owner: root
+    group: root
+    mode: "0644"

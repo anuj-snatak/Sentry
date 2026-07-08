@@ -1,0 +1,4 @@
+---
+dependencies:
+  - role: cloudwatch
+  - role: node_exporter

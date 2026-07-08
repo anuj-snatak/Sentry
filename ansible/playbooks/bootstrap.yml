@@ -1,0 +1,23 @@
+---
+# Stage 1 of the deployment: baseline OS setup and hardening. Run once
+# per instance right after Terraform creates it (see
+# shared-library/vars/ansibleDeploy.groovy), before the application
+# itself is ever deployed.
+- name: Bootstrap application hosts
+  hosts: app
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - ../group_vars/all.yml
+    - "../group_vars/{{ environment_name }}.yml"
+
+  roles:
+    - common
+    - users
+    - security
+    - hardening
+    - firewall
+    - python
+    - awscli
+    - monitoring

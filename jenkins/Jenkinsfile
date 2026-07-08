@@ -1,0 +1,249 @@
+// CloudForge one-click infrastructure + application deployment pipeline.
+//
+// This file is deliberately small: every real step is a call into the
+// shared library (../shared-library), which is what makes each step
+// independently testable and reusable outside this one Jenkinsfile.
+// Required Jenkins plugins: Pipeline, Pipeline: AWS Steps (withAWS),
+// Credentials Binding, Email Extension.
+//
+// Required global configuration (Manage Jenkins > System, or a folder-
+// level property), none of it secret — role/bucket/table names, not
+// credentials:
+//   TF_STATE_BUCKET             S3 bucket from terraform/backend's output
+//   TF_LOCK_TABLE               DynamoDB table from terraform/backend's output
+//   CLOUDFORGE_AWS_ACCOUNT_ID   Account ID the jenkins-deploy-role lives in
+//   CLOUDFORGE_PROJECT_NAME     Must match terraform var.project_name (default "cloudforge")
+//
+// Required Jenkins credentials:
+//   cloudforge-slack-webhook    Secret text — Slack incoming webhook URL
+
+@Library('cloudforge-shared-library') _
+import com.cloudforge.pipeline.AwsUtils
+import com.cloudforge.pipeline.Config
+import com.cloudforge.pipeline.TerraformRunner
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        timeout(time: 90, unit: 'MINUTES')
+        ansiColor('xterm')
+    }
+
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'qa', 'uat', 'prod'], description: 'Target environment')
+        string(name: 'AWS_REGION', defaultValue: 'us-east-1', description: 'AWS region')
+        choice(name: 'ACTION', choices: ['apply', 'plan', 'destroy'], description: 'Terraform action. "apply" provisions/updates infrastructure (covers first-time "create"); "plan" previews only, no changes; "destroy" tears the environment down.')
+        booleanParam(name: 'DEPLOY_APPLICATION', defaultValue: true, description: 'Run the Ansible application deployment stage after infrastructure changes')
+        booleanParam(name: 'DEPLOY_MONITORING', defaultValue: true, description: 'Apply the CloudWatch agent / node_exporter monitoring role stack')
+        string(name: 'INSTANCE_TYPE', defaultValue: '', description: 'Override instance_type for this run only (blank = use the environment tfvars default)')
+        booleanParam(name: 'AUTO_APPROVE', defaultValue: false, description: 'Skip the manual approval gate. Only ever honored for dev (see Config.groovy) — qa/uat/prod always require approval regardless of this flag.')
+        string(name: 'APP_IMAGE', defaultValue: '', description: 'Container image to deploy, e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/cloudforge-app. Required when DEPLOY_APPLICATION or ROLLBACK is true.')
+        string(name: 'APP_IMAGE_TAG', defaultValue: 'latest', description: 'Image tag to deploy')
+        booleanParam(name: 'ROLLBACK', defaultValue: false, description: 'Roll back to the last known-good image tag instead of deploying APP_IMAGE_TAG. Skips all Terraform stages.')
+    }
+
+    environment {
+        TF_IN_AUTOMATION = 'true'
+        CLOUDFORGE_DEPLOY_ROLE_ARN = "${AwsUtils.jenkinsDeployRoleArn(env.CLOUDFORGE_AWS_ACCOUNT_ID ?: '', env.CLOUDFORGE_PROJECT_NAME ?: 'cloudforge')}"
+    }
+
+    stages {
+
+        stage('Validate Parameters') {
+            steps {
+                script {
+                    Config.requireValidEnvironment(params.ENVIRONMENT)
+
+                    if (!env.TF_STATE_BUCKET?.trim() || !env.TF_LOCK_TABLE?.trim()) {
+                        error 'TF_STATE_BUCKET / TF_LOCK_TABLE are not configured on this Jenkins controller (see Jenkinsfile header comment).'
+                    }
+                    if (!env.CLOUDFORGE_AWS_ACCOUNT_ID?.trim()) {
+                        error 'CLOUDFORGE_AWS_ACCOUNT_ID is not configured on this Jenkins controller.'
+                    }
+                    if ((params.DEPLOY_APPLICATION || params.ROLLBACK) && !params.APP_IMAGE?.trim()) {
+                        error 'APP_IMAGE must be set when DEPLOY_APPLICATION or ROLLBACK is true.'
+                    }
+                    if (params.ROLLBACK && params.ACTION != 'apply') {
+                        echo 'ROLLBACK=true: forcing all Terraform stages to be skipped regardless of ACTION.'
+                    }
+
+                    // Safety net: AUTO_APPROVE only ever takes effect for dev,
+                    // no matter what the parameter says, closing off the
+                    // "fat-fingered checkbox nukes prod" failure mode.
+                    env.EFFECTIVE_AUTO_APPROVE = (params.AUTO_APPROVE && Config.autoApproveAllowed(params.ENVIRONMENT)).toString()
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout()
+            }
+        }
+
+        // Every stage below needs AWS credentials, obtained the same way:
+        // assume CLOUDFORGE_DEPLOY_ROLE_ARN via the "Pipeline: AWS Steps"
+        // plugin's withAWS() step — never static access keys. Declarative
+        // pipeline's stages{} block can only contain stage{} entries
+        // directly (wrapping several stages in one shared withAWS{} block
+        // is scripted-pipeline syntax and would fail to load here), so
+        // each stage below wraps its own steps in withAWS individually.
+
+        stage('Terraform Init') {
+            when { expression { !params.ROLLBACK } }
+            steps {
+                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                    terraformInit(
+                        environment: params.ENVIRONMENT,
+                        region: params.AWS_REGION,
+                        stateBucket: env.TF_STATE_BUCKET,
+                        lockTable: env.TF_LOCK_TABLE
+                    )
+                }
+            }
+        }
+
+        stage('Terraform Validate') {
+            when { expression { !params.ROLLBACK } }
+            steps {
+                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                    terraformValidate(params.ENVIRONMENT)
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            when { expression { !params.ROLLBACK && params.ACTION != 'destroy' } }
+            steps {
+                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                    terraformPlan(environment: params.ENVIRONMENT, instanceType: params.INSTANCE_TYPE ?: null)
+                }
+            }
+        }
+
+        stage('Approval') {
+            when {
+                allOf {
+                    expression { !params.ROLLBACK }
+                    expression { env.EFFECTIVE_AUTO_APPROVE != 'true' }
+                }
+            }
+            steps {
+                input message: "Apply Terraform ${params.ACTION} to ${params.ENVIRONMENT}?", ok: 'Proceed'
+            }
+        }
+
+        stage('Terraform Apply') {
+            when { allOf { expression { !params.ROLLBACK }; expression { params.ACTION == 'apply' } } }
+            steps {
+                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                    terraformApply(params.ENVIRONMENT)
+                }
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when { allOf { expression { !params.ROLLBACK }; expression { params.ACTION == 'destroy' } } }
+            steps {
+                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                    terraformDestroy(environment: params.ENVIRONMENT, instanceType: params.INSTANCE_TYPE ?: null)
+                }
+            }
+        }
+
+        stage('Generate Inventory') {
+            when {
+                expression {
+                    params.ROLLBACK || (params.ACTION == 'apply' && (params.DEPLOY_APPLICATION || params.DEPLOY_MONITORING))
+                }
+            }
+            steps {
+                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                    inventoryGeneration(environment: params.ENVIRONMENT, region: params.AWS_REGION)
+                }
+            }
+        }
+
+        stage('Ansible Bootstrap') {
+            when { allOf { expression { !params.ROLLBACK }; expression { params.ACTION == 'apply' } } }
+            steps {
+                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                    ansibleDeploy(environment: params.ENVIRONMENT, playbook: 'bootstrap.yml')
+                }
+            }
+        }
+
+        stage('Deploy Application') {
+            when { allOf { expression { !params.ROLLBACK }; expression { params.ACTION == 'apply' }; expression { params.DEPLOY_APPLICATION } } }
+            steps {
+                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                    dockerDeploy(environment: params.ENVIRONMENT, appImage: params.APP_IMAGE, appImageTag: params.APP_IMAGE_TAG)
+                }
+            }
+        }
+
+        stage('Rollback') {
+            when { expression { params.ROLLBACK } }
+            steps {
+                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                    script {
+                        def albDnsName = new TerraformRunner(this, params.ENVIRONMENT).output('alb_dns_name')
+                        rollback(environment: params.ENVIRONMENT, appImage: params.APP_IMAGE, albDnsName: albDnsName)
+                    }
+                }
+            }
+        }
+
+        stage('Monitoring') {
+            when { allOf { expression { !params.ROLLBACK }; expression { params.ACTION == 'apply' }; expression { params.DEPLOY_MONITORING } } }
+            steps {
+                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                    ansibleDeploy(environment: params.ENVIRONMENT, playbook: 'monitoring.yml')
+                }
+            }
+        }
+
+        stage('Smoke Test & Health Check') {
+            when { expression { !params.ROLLBACK && params.ACTION == 'apply' && params.DEPLOY_APPLICATION } }
+            steps {
+                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                    script {
+                        def albDnsName = new TerraformRunner(this, params.ENVIRONMENT).output('alb_dns_name')
+                        healthCheck(environment: params.ENVIRONMENT, albDnsName: albDnsName)
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        // Declarative pipeline runs post conditions in a fixed order —
+        // always, ..., failure, success, ..., cleanup — regardless of
+        // which blocks are present. "cleanup" is guaranteed to run last,
+        // which is what workspace teardown actually needs: success/
+        // failure below must run first while build artifacts still exist.
+        success {
+            script {
+                def msg = "✅ ${params.ENVIRONMENT}: ${params.ROLLBACK ? 'rollback' : params.ACTION} succeeded (build ${env.BUILD_NUMBER})"
+                notifySlack(status: 'success', message: msg)
+                notifyEmail(recipients: env.CLOUDFORGE_NOTIFY_EMAIL ?: '', subject: msg, body: "See ${env.BUILD_URL}")
+                generateReport(environment: params.ENVIRONMENT, status: 'success', appImageTag: params.APP_IMAGE_TAG)
+            }
+        }
+        failure {
+            script {
+                def msg = "❌ ${params.ENVIRONMENT}: ${params.ROLLBACK ? 'rollback' : params.ACTION} FAILED (build ${env.BUILD_NUMBER})"
+                notifySlack(status: 'failure', message: msg)
+                notifyEmail(recipients: env.CLOUDFORGE_NOTIFY_EMAIL ?: '', subject: msg, body: "See ${env.BUILD_URL}console")
+                generateReport(environment: params.ENVIRONMENT, status: 'failure', appImageTag: params.APP_IMAGE_TAG)
+            }
+        }
+        cleanup {
+            cleanup()
+        }
+    }
+}

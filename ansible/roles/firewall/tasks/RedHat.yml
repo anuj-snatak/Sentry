@@ -1,0 +1,27 @@
+---
+- name: Install firewalld
+  ansible.builtin.package:
+    name: firewalld
+    state: present
+
+- name: Enable and start firewalld
+  ansible.builtin.systemd:
+    name: firewalld
+    enabled: true
+    state: started
+
+- name: Allow required TCP ports through firewalld
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ firewall_allowed_tcp_ports }}"
+
+- name: Allow SSH through firewalld
+  ansible.posix.firewalld:
+    port: "{{ firewall_ssh_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+  when: firewall_allow_ssh

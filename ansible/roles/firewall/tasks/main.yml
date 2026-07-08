@@ -1,0 +1,3 @@
+---
+- name: Apply firewall rules for this OS family
+  ansible.builtin.include_tasks: "{{ ansible_os_family }}.yml"

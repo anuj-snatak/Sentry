@@ -1,0 +1,31 @@
+---
+- name: Apply kernel/network hardening sysctl settings
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-cloudforge-hardening.conf
+    reload: true
+  loop: "{{ hardening_sysctl_settings | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Enforce restrictive permissions on sensitive account files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "{{ item.mode }}"
+    owner: root
+    group: root
+  loop: "{{ hardening_restricted_files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Deploy authorized-use warning banner
+  ansible.builtin.copy:
+    dest: "{{ item }}"
+    content: "{{ hardening_banner_text }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - /etc/issue
+    - /etc/issue.net

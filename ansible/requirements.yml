@@ -1,0 +1,13 @@
+---
+# Install with: ansible-galaxy collection install -r ansible/requirements.yml
+collections:
+  - name: amazon.aws
+    version: ">=7.0.0"
+  - name: community.aws
+    version: ">=7.0.0"      # provides the aws_ssm connection plugin used to reach private-subnet instances without SSH/bastion
+  - name: community.general
+    version: ">=8.0.0"      # firewalld/ufw and other general-purpose modules
+  - name: ansible.posix
+    version: ">=1.5.0"      # authorized_key, sysctl, firewalld helpers
+  - name: community.docker
+    version: ">=3.10.0"     # docker_container module used by the application role

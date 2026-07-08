@@ -1,0 +1,33 @@
+---
+# Installed via AWS's official cross-distro bundled installer rather
+# than a distro package, so this role behaves identically on RedHat-
+# and Debian-family hosts. AL2023's base AMI already ships AWS CLI v2,
+# so the "already installed" check below makes this whole role a no-op
+# there; it stays correct for any other base image too.
+- name: Check whether AWS CLI is already installed
+  ansible.builtin.stat:
+    path: "{{ awscli_bin_symlink_dir }}/aws"
+  register: awscli_existing_binary
+
+- name: Determine AWS CLI download architecture
+  ansible.builtin.set_fact:
+    awscli_arch: "{{ 'aarch64' if ansible_architecture == 'aarch64' else 'x86_64' }}"
+  when: not awscli_existing_binary.stat.exists
+
+- name: Download AWS CLI v2 installer
+  ansible.builtin.get_url:
+    url: "https://awscli.amazonaws.com/awscli-exe-linux-{{ awscli_arch }}.zip"
+    dest: /tmp/awscliv2.zip
+    mode: "0644"
+  when: not awscli_existing_binary.stat.exists
+
+- name: Unarchive the AWS CLI installer
+  ansible.builtin.unarchive:
+    src: /tmp/awscliv2.zip
+    dest: /tmp
+    remote_src: true
+  when: not awscli_existing_binary.stat.exists
+
+- name: Install AWS CLI v2
+  ansible.builtin.command: /tmp/aws/install -i {{ awscli_install_dir }} -b {{ awscli_bin_symlink_dir }}
+  when: not awscli_existing_binary.stat.exists

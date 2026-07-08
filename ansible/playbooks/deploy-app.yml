@@ -1,0 +1,19 @@
+---
+# Stage 2 of the deployment: container runtime, reverse proxy, and the
+# application itself. Assumes bootstrap.yml has already run on these
+# hosts. Re-run on its own for application-only redeploys (new image
+# tag) without repeating OS bootstrap work.
+- name: Deploy the application
+  hosts: app
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - ../group_vars/all.yml
+    - "../group_vars/{{ environment_name }}.yml"
+
+  roles:
+    - docker
+    - nginx
+    - application
+    - logrotate

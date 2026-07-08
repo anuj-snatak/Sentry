@@ -1,0 +1,17 @@
+---
+# dev-environment overrides of group_vars/all.yml. Loaded explicitly by
+# playbooks after all.yml, so any key set here wins. Values here should
+# match terraform/environments/dev/terraform.tfvars where the same
+# concept exists on both sides (e.g. app_port).
+
+environment_name: dev
+
+app_port: 8080
+app_health_check_path: /health
+
+# dev favors fast feedback over long retention.
+logrotate_app_retention_days: 7
+
+# dev is not a target for real paging; alarms still fire (see Terraform
+# CloudWatch alarms) but nobody's on-call for this environment.
+fail2ban_bantime: 1800

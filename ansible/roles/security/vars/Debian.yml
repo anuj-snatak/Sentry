@@ -1,0 +1,5 @@
+---
+security_packages:
+  - fail2ban
+  - auditd
+security_audit_service: auditd

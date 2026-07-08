@@ -1,0 +1,32 @@
+---
+- name: "Install CloudWatch agent (RedHat family: available directly in AL2023 repos)"
+  ansible.builtin.package:
+    name: amazon-cloudwatch-agent
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Download CloudWatch agent .deb package (Debian family)
+  ansible.builtin.get_url:
+    url: "https://s3.amazonaws.com/amazoncloudwatch-agent/debian/amd64/latest/amazon-cloudwatch-agent.deb"
+    dest: /tmp/amazon-cloudwatch-agent.deb
+    mode: "0644"
+  when: ansible_os_family == "Debian"
+
+- name: Install CloudWatch agent (Debian family)
+  ansible.builtin.apt:
+    deb: /tmp/amazon-cloudwatch-agent.deb
+  when: ansible_os_family == "Debian"
+
+- name: Deploy CloudWatch agent configuration
+  ansible.builtin.template:
+    src: amazon-cloudwatch-agent.json.j2
+    dest: /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply cloudwatch agent config
+
+- name: Enable CloudWatch agent to start on boot
+  ansible.builtin.systemd:
+    name: amazon-cloudwatch-agent
+    enabled: true

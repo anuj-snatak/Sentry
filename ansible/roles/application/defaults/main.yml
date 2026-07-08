@@ -1,0 +1,28 @@
+---
+app_name: cloudforge-app
+app_install_dir: /opt/cloudforge-app
+
+# No default image: this platform doesn't assume what the application
+# is. Set via -e app_image=... (Jenkins dockerDeploy passes this from
+# the build) or override in group_vars/<env>.yml once a real app exists.
+app_image: ""
+app_image_tag: "latest"
+
+app_port: 8080
+app_container_port: 8080
+app_restart_policy: unless-stopped
+
+app_env: {} # plain (non-secret) environment variables for the container
+
+# When set, the value of this Secrets Manager secret (see
+# terraform/environments/dev's app_secret module) is fetched at deploy
+# time and injected as the APP_SECRET environment variable. Never
+# written to disk, never logged (no_log: true on the lookup task).
+app_secret_name: ""
+
+# Set true if app_image lives in a private ECR repo the instance role
+# has pull access to (already true for app_instance_role's default IAM
+# grants only cover the explicit resources wired in Terraform — add ECR
+# permissions there if you enable this).
+app_ecr_login: false
+app_ecr_registry: "" # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com

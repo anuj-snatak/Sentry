@@ -1,0 +1,40 @@
+---
+- name: Download NodeSource setup script (RPM-based)
+  ansible.builtin.get_url:
+    url: "https://rpm.nodesource.com/setup_{{ nodejs_major_version }}.x"
+    dest: /tmp/nodesource_setup.sh
+    mode: "0755"
+  when:
+    - node_use_nodesource_repo
+    - ansible_os_family == "RedHat"
+
+- name: Run NodeSource setup script (RPM-based)
+  ansible.builtin.shell: /tmp/nodesource_setup.sh
+  args:
+    creates: /etc/yum.repos.d/nodesource-nodejs.repo
+  when:
+    - node_use_nodesource_repo
+    - ansible_os_family == "RedHat"
+
+- name: Download NodeSource setup script (Debian-based)
+  ansible.builtin.get_url:
+    url: "https://deb.nodesource.com/setup_{{ nodejs_major_version }}.x"
+    dest: /tmp/nodesource_setup.sh
+    mode: "0755"
+  when:
+    - node_use_nodesource_repo
+    - ansible_os_family == "Debian"
+
+- name: Run NodeSource setup script (Debian-based)
+  ansible.builtin.shell: /tmp/nodesource_setup.sh
+  args:
+    creates: /etc/apt/sources.list.d/nodesource.list
+  when:
+    - node_use_nodesource_repo
+    - ansible_os_family == "Debian"
+
+- name: Install Node.js and npm
+  ansible.builtin.package:
+    name:
+      - nodejs
+    state: present

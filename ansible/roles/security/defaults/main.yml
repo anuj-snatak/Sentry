@@ -1,0 +1,14 @@
+---
+ssh_permit_root_login: false
+ssh_password_authentication: false
+ssh_x11_forwarding: false
+ssh_max_auth_tries: 4
+ssh_client_alive_interval: 300
+ssh_client_alive_count_max: 2
+
+fail2ban_enabled: true
+fail2ban_bantime: 3600
+fail2ban_findtime: 600
+fail2ban_maxretry: 5
+
+auditd_enabled: true

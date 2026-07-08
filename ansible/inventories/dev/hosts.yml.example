@@ -1,0 +1,28 @@
+# Example of the inventory shape produced at deploy time by
+# python/cloudforge/inventory/dynamic_inventory.py (invoked by
+# shared-library/vars/inventoryGeneration.groovy right after `terraform
+# apply`). The real, generated ansible/inventories/dev/hosts.yml is
+# gitignored — it's build output, not source — this file documents its
+# shape so the format is reviewable and so a developer can hand-craft one
+# for local testing without running Terraform first.
+#
+# Instances are private-subnet-only (no public IP, no open SSH — see
+# terraform/environments/dev/terraform.tfvars). Reachability is via AWS
+# Systems Manager Session Manager, routed through the VPC interface
+# endpoints created in terraform/modules/networking/vpc-endpoints, not
+# via SSH. See inventories/dev/group_vars/all.yml for the connection
+# wiring that makes this work.
+all:
+  children:
+    app:
+      hosts:
+        i-0123456789abcdef0:
+          ansible_host: 10.0.32.15
+          private_ip: 10.0.32.15
+          instance_id: i-0123456789abcdef0
+          availability_zone: us-east-1a
+        i-0fedcba9876543210:
+          ansible_host: 10.0.48.22
+          private_ip: 10.0.48.22
+          instance_id: i-0fedcba9876543210
+          availability_zone: us-east-1b

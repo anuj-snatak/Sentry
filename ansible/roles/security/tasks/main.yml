@@ -1,0 +1,41 @@
+---
+- name: Load OS-family-specific package/service names
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- name: Install fail2ban and audit packages
+  ansible.builtin.package:
+    name: "{{ security_packages }}"
+    state: present
+
+- name: Deploy SSH hardening drop-in
+  ansible.builtin.template:
+    src: sshd-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/99-hardening.conf
+    owner: root
+    group: root
+    mode: "0600"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd
+
+- name: Deploy fail2ban jail configuration
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+  when: fail2ban_enabled
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    enabled: true
+    state: started
+  when: fail2ban_enabled
+
+- name: Enable and start auditd
+  ansible.builtin.systemd:
+    name: "{{ security_audit_service }}"
+    enabled: "{{ auditd_enabled }}"
+    state: "{{ 'started' if auditd_enabled else 'stopped' }}"

@@ -1,0 +1,14 @@
+---
+- name: Load OS-family-specific package names
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- name: Install Python 3 toolchain
+  ansible.builtin.package:
+    name: "{{ python_packages }}"
+    state: present
+
+- name: Install extra Python packages
+  ansible.builtin.pip:
+    name: "{{ python_pip_packages }}"
+    state: present
+  when: python_pip_packages | length > 0

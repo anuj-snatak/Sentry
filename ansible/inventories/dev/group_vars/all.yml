@@ -1,0 +1,30 @@
+---
+# Connection wiring for the dev inventory. Auto-loaded by Ansible because
+# this file lives next to inventories/dev/hosts.yml. Environment-specific
+# behavior (app_port, thresholds, etc.) belongs in ../../../group_vars/dev.yml
+# instead — this file is connection plumbing only.
+
+environment_name: dev
+aws_region: us-east-1
+
+# Reach private-subnet instances via SSM Session Manager instead of SSH:
+# no bastion, no VPN, no open port 22 required. Needs the AWS CLI Session
+# Manager plugin and the community.aws collection installed on whichever
+# host runs ansible-playbook (see ansible/requirements.yml), plus IAM
+# permissions for ssm:StartSession / ssmmessages:* (already granted via
+# the jenkins-deploy-role Terraform module for the pipeline; developers
+# running this locally need equivalent permissions on their own identity).
+ansible_connection: community.aws.aws_ssm
+ansible_aws_ssm_region: "{{ aws_region }}"
+ansible_aws_ssm_bucket_name: "{{ lookup('env', 'CLOUDFORGE_SSM_TRANSFER_BUCKET') }}"
+ansible_aws_ssm_instance_id: "{{ instance_id }}"
+ansible_python_interpreter: /usr/bin/python3
+
+# Fallback for local testing against instances reached over plain SSH
+# (e.g. a bastion-fronted sandbox VPC outside this repo's Terraform):
+# override ansible_connection to "ssh" and set ansible_user/
+# ansible_ssh_private_key_file per host, either here or via -e on the
+# command line. Left commented out because SSM is this platform's
+# supported default, not SSH.
+# ansible_connection: ssh
+# ansible_user: ec2-user

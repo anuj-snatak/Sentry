@@ -1,0 +1,5 @@
+---
+# Amazon Linux 2023's own repos carry Docker CE directly under the
+# plain "docker" package name — no third-party repo needed.
+docker_packages:
+  - docker

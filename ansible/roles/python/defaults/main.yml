@@ -1,0 +1,2 @@
+---
+python_pip_packages: [] # extra Python packages to pip-install system-wide, e.g. ["boto3"]

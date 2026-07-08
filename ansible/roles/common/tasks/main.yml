@@ -1,0 +1,31 @@
+---
+- name: Load OS-family-specific package/service names
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- name: Install baseline packages
+  ansible.builtin.package:
+    name: "{{ common_packages + common_extra_packages }}"
+    state: present
+
+- name: Set system timezone
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+
+- name: Enable and start time sync service
+  ansible.builtin.systemd:
+    name: "{{ common_ntp_service }}"
+    enabled: "{{ common_ntp_enabled }}"
+    state: "{{ 'started' if common_ntp_enabled else 'stopped' }}"
+
+- name: Ensure /etc/motd identifies this host as CloudForge-managed
+  ansible.builtin.copy:
+    dest: /etc/motd
+    content: |
+      *******************************************************************
+       This host is managed by {{ project_name | default('cloudforge') }}.
+       Configuration is applied by Ansible via the Jenkins pipeline.
+       Manual changes will be overwritten on the next deployment.
+      *******************************************************************
+    owner: root
+    group: root
+    mode: "0644"

@@ -1,0 +1,11 @@
+{
+  "attachments": [
+    {
+      "color": "__COLOR__",
+      "title": "__JOB_NAME__",
+      "title_link": "__BUILD_URL__",
+      "text": "__MESSAGE__",
+      "footer": "CloudForge Jenkins Pipeline"
+    }
+  ]
+}

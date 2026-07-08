@@ -1,0 +1,7 @@
+---
+nginx_worker_connections: 1024
+nginx_server_name: "_"
+nginx_client_max_body_size: "10m"
+nginx_upstream_host: "127.0.0.1"
+nginx_upstream_port: "{{ app_port | default(8080) }}"
+nginx_health_check_path: "{{ app_health_check_path | default('/health') }}"

@@ -1,0 +1,13 @@
+---
+common_packages:
+  - curl
+  - wget
+  - unzip
+  - tar
+  - jq
+  - git
+  - vim-enhanced
+  - chrony
+  - ca-certificates
+  - policycoreutils-python-utils
+common_ntp_service: chronyd

@@ -1,0 +1,12 @@
+---
+# Host-level firewall as defense-in-depth on top of the AWS security
+# groups Terraform already applies (app-sg only allows the ALB in on
+# app_port; there is no port 22 rule unless admin_cidr_blocks is set).
+# Kept independent of those security groups deliberately: this role
+# doesn't know or care what Terraform did, and vice versa.
+firewall_allowed_tcp_ports:
+  - "{{ app_port | default(8080) }}"
+  - "{{ node_exporter_port | default(9100) }}"
+
+firewall_allow_ssh: false
+firewall_ssh_port: 22

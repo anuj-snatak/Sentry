@@ -1,0 +1,16 @@
+---
+# Re-applies just the monitoring stack (CloudWatch agent + node_exporter
+# + status helper). Useful for pushing a config-only change (e.g. a new
+# CloudWatch log group) without touching the application or re-running
+# full bootstrap.
+- name: Apply monitoring configuration
+  hosts: app
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - ../group_vars/all.yml
+    - "../group_vars/{{ environment_name }}.yml"
+
+  roles:
+    - monitoring
