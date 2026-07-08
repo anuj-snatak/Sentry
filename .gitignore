@@ -35,8 +35,10 @@ venv/
 .mypy_cache/
 *.log
 
-# Reports / generated artifacts
-reports/
+# Reports / generated artifacts (root-level only — anchored with a
+# leading slash so this doesn't also match the real source package at
+# python/cloudforge/reports/)
+/reports/
 *.report.json
 *.report.html
 
