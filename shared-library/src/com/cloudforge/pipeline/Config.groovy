@@ -54,11 +54,24 @@ class Config implements Serializable {
      * names a Jenkins "AWS Credentials" credential to use as that base
      * identity instead. Centralized here so every stage's withAWS call
      * doesn't have to duplicate this conditional.
+     *
+     * CLOUDFORGE_SKIP_ROLE_ASSUMPTION=true drops the role assumption
+     * entirely and uses CLOUDFORGE_BASE_AWS_CREDENTIAL_ID's credentials
+     * directly for every AWS call. Needed whenever the base identity
+     * can't assume a role at all — notably, AWS unconditionally rejects
+     * sts:AssumeRole from account root credentials ("Roles may not be
+     * assumed by root accounts"), independent of the role's trust
+     * policy. Prefer a real IAM identity + role assumption in any setup
+     * that isn't a quick local test.
      */
     static Map awsAuthParams(script, String roleArn, String region) {
-        def authParams = [role: roleArn, roleSessionName: "jenkins-${script.env.BUILD_NUMBER}", region: region]
+        def authParams = [region: region]
         if (script.env.CLOUDFORGE_BASE_AWS_CREDENTIAL_ID?.trim()) {
             authParams.credentials = script.env.CLOUDFORGE_BASE_AWS_CREDENTIAL_ID
+        }
+        if (!Boolean.parseBoolean(script.env.CLOUDFORGE_SKIP_ROLE_ASSUMPTION)) {
+            authParams.role = roleArn
+            authParams.roleSessionName = "jenkins-${script.env.BUILD_NUMBER}"
         }
         return authParams
     }

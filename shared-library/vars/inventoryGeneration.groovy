@@ -19,7 +19,7 @@ def call(Map config) {
 
     sh """
         set -euo pipefail
-        python3 python/cloudforge/inventory/dynamic_inventory.py \\
+        PYTHONPATH=python python3 python/cloudforge/inventory/dynamic_inventory.py \\
           --environment ${environment} \\
           --region ${config.region} \\
           --tf-outputs ${outputsFile} \\

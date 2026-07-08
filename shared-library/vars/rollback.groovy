@@ -18,7 +18,7 @@ def call(Map config) {
 
     echo "==> Determining last known-good image tag for ${environment}"
     def lastGoodTag = sh(
-        script: "python3 python/cloudforge/reports/deployment_report.py --environment ${environment} --history-bucket ${historyBucket} --print-last-good-tag",
+        script: "PYTHONPATH=python python3 python/cloudforge/reports/deployment_report.py --environment ${environment} --history-bucket ${historyBucket} --print-last-good-tag",
         returnStdout: true
     ).trim()
 

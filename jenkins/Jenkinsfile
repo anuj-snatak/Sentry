@@ -18,6 +18,13 @@
 //                               from (e.g. Jenkins running outside AWS). Names a Jenkins
 //                               "AWS Credentials" credential to use as the base identity
 //                               instead. Leave unset on an EC2-hosted Jenkins.
+//   CLOUDFORGE_SKIP_ROLE_ASSUMPTION   Optional, "true"/"false". When true, every AWS
+//                               call uses CLOUDFORGE_BASE_AWS_CREDENTIAL_ID's identity
+//                               directly instead of assuming CLOUDFORGE_DEPLOY_ROLE_ARN.
+//                               Required if that base identity is an AWS account root
+//                               user — AWS unconditionally refuses sts:AssumeRole from
+//                               root, so role assumption cannot work in that case. Leave
+//                               unset/false for any real (non-root) IAM identity.
 //
 // Required Jenkins credentials:
 //   cloudforge-slack-webhook    Secret text — Slack incoming webhook URL

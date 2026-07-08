@@ -35,5 +35,5 @@ def call(Map config) {
     """
 
     echo "==> Per-instance health check"
-    sh "python3 python/cloudforge/health/health_check.py --environment ${environment} --region ${region} --tf-outputs ${Config.terraformOutputsFile(environment)}"
+    sh "PYTHONPATH=python python3 python/cloudforge/health/health_check.py --environment ${environment} --region ${region} --tf-outputs ${Config.terraformOutputsFile(environment)}"
 }

@@ -19,7 +19,7 @@ def call(Map config) {
 
     echo "==> Generating deployment report for ${environment}"
     sh """
-        python3 python/cloudforge/reports/deployment_report.py \\
+        PYTHONPATH=python python3 python/cloudforge/reports/deployment_report.py \\
           --environment ${environment} \\
           --build-number ${env.BUILD_NUMBER} \\
           --build-url '${env.BUILD_URL ?: ""}' \\
