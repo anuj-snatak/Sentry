@@ -9,8 +9,11 @@ class AnsibleRunner implements Serializable {
     private final def script
     private final String environment
 
+    // See TerraformRunner's constructor comment: no library method calls
+    // here, to avoid Jenkins' CPS constructor-transform mismatch.
+    // Validation still happens on every real use, via runPlaybook() ->
+    // Config.ansibleInventoryPath() -> Config.requireValidEnvironment().
     AnsibleRunner(script, String environment) {
-        Config.requireValidEnvironment(environment)
         this.script = script
         this.environment = environment
     }

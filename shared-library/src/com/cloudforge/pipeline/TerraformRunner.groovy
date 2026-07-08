@@ -16,8 +16,12 @@ class TerraformRunner implements Serializable {
     private final def script
     private final String environment
 
+    // Deliberately no validation call here: invoking another library
+    // method from a constructor confuses Jenkins' CPS transformer
+    // ("expected to call <init> but wound up catching ..."). Validation
+    // still happens on every real use, via workDir() -> Config.terraformDir()
+    // -> Config.requireValidEnvironment().
     TerraformRunner(script, String environment) {
-        Config.requireValidEnvironment(environment)
         this.script = script
         this.environment = environment
     }
