@@ -138,9 +138,13 @@ pipeline {
         }
 
         stage('Approval') {
+            // Pointless to ask for approval on ACTION=plan: Terraform
+            // Apply/Destroy below are both gated on ACTION, so nothing
+            // actually happens regardless of what's clicked here.
             when {
                 allOf {
                     expression { !params.ROLLBACK }
+                    expression { params.ACTION != 'plan' }
                     expression { env.EFFECTIVE_AUTO_APPROVE != 'true' }
                 }
             }
