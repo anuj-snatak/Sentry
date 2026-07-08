@@ -20,6 +20,12 @@ jenkins:
             value: "${CLOUDFORGE_PROJECT_NAME}"
           - key: "CLOUDFORGE_BASE_AWS_CREDENTIAL_ID"
             value: "cloudforge-aws-creds"
+          # This test setup's AWS credential is an account root user, and
+          # AWS refuses sts:AssumeRole from root unconditionally — see
+          # Config.awsAuthParams. Real deployments should use a non-root
+          # IAM identity and delete this line (defaults to role assumption).
+          - key: "CLOUDFORGE_SKIP_ROLE_ASSUMPTION"
+            value: "true"
           # Filled in via Manage Jenkins > System > Global properties
           # after the cloudforge-bootstrap job's first successful run —
           # they don't exist yet on a fresh Jenkins.
