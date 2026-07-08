@@ -13,6 +13,11 @@
 //   TF_LOCK_TABLE               DynamoDB table from terraform/backend's output
 //   CLOUDFORGE_AWS_ACCOUNT_ID   Account ID the jenkins-deploy-role lives in
 //   CLOUDFORGE_PROJECT_NAME     Must match terraform var.project_name (default "cloudforge")
+//   CLOUDFORGE_BASE_AWS_CREDENTIAL_ID   Optional. Set only when Jenkins has no EC2
+//                               instance profile to assume CLOUDFORGE_DEPLOY_ROLE_ARN
+//                               from (e.g. Jenkins running outside AWS). Names a Jenkins
+//                               "AWS Credentials" credential to use as the base identity
+//                               instead. Leave unset on an EC2-hosted Jenkins.
 //
 // Required Jenkins credentials:
 //   cloudforge-slack-webhook    Secret text — Slack incoming webhook URL
@@ -96,7 +101,7 @@ pipeline {
         stage('Terraform Init') {
             when { expression { !params.ROLLBACK } }
             steps {
-                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                withAWS(Config.awsAuthParams(this, env.CLOUDFORGE_DEPLOY_ROLE_ARN, params.AWS_REGION)) {
                     terraformInit(
                         environment: params.ENVIRONMENT,
                         region: params.AWS_REGION,
@@ -110,7 +115,7 @@ pipeline {
         stage('Terraform Validate') {
             when { expression { !params.ROLLBACK } }
             steps {
-                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                withAWS(Config.awsAuthParams(this, env.CLOUDFORGE_DEPLOY_ROLE_ARN, params.AWS_REGION)) {
                     terraformValidate(params.ENVIRONMENT)
                 }
             }
@@ -119,7 +124,7 @@ pipeline {
         stage('Terraform Plan') {
             when { expression { !params.ROLLBACK && params.ACTION != 'destroy' } }
             steps {
-                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                withAWS(Config.awsAuthParams(this, env.CLOUDFORGE_DEPLOY_ROLE_ARN, params.AWS_REGION)) {
                     terraformPlan(environment: params.ENVIRONMENT, instanceType: params.INSTANCE_TYPE ?: null)
                 }
             }
@@ -140,7 +145,7 @@ pipeline {
         stage('Terraform Apply') {
             when { allOf { expression { !params.ROLLBACK }; expression { params.ACTION == 'apply' } } }
             steps {
-                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                withAWS(Config.awsAuthParams(this, env.CLOUDFORGE_DEPLOY_ROLE_ARN, params.AWS_REGION)) {
                     terraformApply(params.ENVIRONMENT)
                 }
             }
@@ -149,7 +154,7 @@ pipeline {
         stage('Terraform Destroy') {
             when { allOf { expression { !params.ROLLBACK }; expression { params.ACTION == 'destroy' } } }
             steps {
-                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                withAWS(Config.awsAuthParams(this, env.CLOUDFORGE_DEPLOY_ROLE_ARN, params.AWS_REGION)) {
                     terraformDestroy(environment: params.ENVIRONMENT, instanceType: params.INSTANCE_TYPE ?: null)
                 }
             }
@@ -162,7 +167,7 @@ pipeline {
                 }
             }
             steps {
-                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                withAWS(Config.awsAuthParams(this, env.CLOUDFORGE_DEPLOY_ROLE_ARN, params.AWS_REGION)) {
                     inventoryGeneration(environment: params.ENVIRONMENT, region: params.AWS_REGION)
                 }
             }
@@ -171,7 +176,7 @@ pipeline {
         stage('Ansible Bootstrap') {
             when { allOf { expression { !params.ROLLBACK }; expression { params.ACTION == 'apply' } } }
             steps {
-                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                withAWS(Config.awsAuthParams(this, env.CLOUDFORGE_DEPLOY_ROLE_ARN, params.AWS_REGION)) {
                     ansibleDeploy(environment: params.ENVIRONMENT, playbook: 'bootstrap.yml')
                 }
             }
@@ -180,7 +185,7 @@ pipeline {
         stage('Deploy Application') {
             when { allOf { expression { !params.ROLLBACK }; expression { params.ACTION == 'apply' }; expression { params.DEPLOY_APPLICATION } } }
             steps {
-                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                withAWS(Config.awsAuthParams(this, env.CLOUDFORGE_DEPLOY_ROLE_ARN, params.AWS_REGION)) {
                     dockerDeploy(environment: params.ENVIRONMENT, appImage: params.APP_IMAGE, appImageTag: params.APP_IMAGE_TAG)
                 }
             }
@@ -189,7 +194,7 @@ pipeline {
         stage('Rollback') {
             when { expression { params.ROLLBACK } }
             steps {
-                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                withAWS(Config.awsAuthParams(this, env.CLOUDFORGE_DEPLOY_ROLE_ARN, params.AWS_REGION)) {
                     script {
                         def albDnsName = new TerraformRunner(this, params.ENVIRONMENT).output('alb_dns_name')
                         rollback(environment: params.ENVIRONMENT, appImage: params.APP_IMAGE, albDnsName: albDnsName)
@@ -201,7 +206,7 @@ pipeline {
         stage('Monitoring') {
             when { allOf { expression { !params.ROLLBACK }; expression { params.ACTION == 'apply' }; expression { params.DEPLOY_MONITORING } } }
             steps {
-                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                withAWS(Config.awsAuthParams(this, env.CLOUDFORGE_DEPLOY_ROLE_ARN, params.AWS_REGION)) {
                     ansibleDeploy(environment: params.ENVIRONMENT, playbook: 'monitoring.yml')
                 }
             }
@@ -210,7 +215,7 @@ pipeline {
         stage('Smoke Test & Health Check') {
             when { expression { !params.ROLLBACK && params.ACTION == 'apply' && params.DEPLOY_APPLICATION } }
             steps {
-                withAWS(role: "${CLOUDFORGE_DEPLOY_ROLE_ARN}", roleSessionName: "jenkins-${env.BUILD_NUMBER}", region: "${params.AWS_REGION}") {
+                withAWS(Config.awsAuthParams(this, env.CLOUDFORGE_DEPLOY_ROLE_ARN, params.AWS_REGION)) {
                     script {
                         def albDnsName = new TerraformRunner(this, params.ENVIRONMENT).output('alb_dns_name')
                         healthCheck(environment: params.ENVIRONMENT, albDnsName: albDnsName)

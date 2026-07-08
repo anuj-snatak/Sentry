@@ -43,4 +43,23 @@ class Config implements Serializable {
     static boolean autoApproveAllowed(String environment) {
         return ENVIRONMENT_DEFAULTS[environment]?.autoApproveAllowed ?: false
     }
+
+    /**
+     * Parameters for the "Pipeline: AWS Steps" withAWS() step. On a
+     * Jenkins controller/agent running on EC2, the instance profile
+     * supplies the base identity that assumes roleArn, and
+     * CLOUDFORGE_BASE_AWS_CREDENTIAL_ID stays unset. Anywhere else
+     * (local Docker, on-prem, another cloud), there's no instance
+     * profile to fall back to, so CLOUDFORGE_BASE_AWS_CREDENTIAL_ID
+     * names a Jenkins "AWS Credentials" credential to use as that base
+     * identity instead. Centralized here so every stage's withAWS call
+     * doesn't have to duplicate this conditional.
+     */
+    static Map awsAuthParams(script, String roleArn, String region) {
+        def authParams = [role: roleArn, roleSessionName: "jenkins-${script.env.BUILD_NUMBER}", region: region]
+        if (script.env.CLOUDFORGE_BASE_AWS_CREDENTIAL_ID?.trim()) {
+            authParams.credentials = script.env.CLOUDFORGE_BASE_AWS_CREDENTIAL_ID
+        }
+        return authParams
+    }
 }
