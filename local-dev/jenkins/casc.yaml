@@ -1,0 +1,72 @@
+jenkins:
+  systemMessage: "CloudForge local test Jenkins — not a production install."
+  numExecutors: 2
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_ID}"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        - "Overall/Administer:${JENKINS_ADMIN_ID}"
+  globalNodeProperties:
+    - envVars:
+        env:
+          - key: "CLOUDFORGE_AWS_ACCOUNT_ID"
+            value: "${CLOUDFORGE_AWS_ACCOUNT_ID}"
+          - key: "CLOUDFORGE_PROJECT_NAME"
+            value: "${CLOUDFORGE_PROJECT_NAME}"
+          - key: "CLOUDFORGE_BASE_AWS_CREDENTIAL_ID"
+            value: "cloudforge-aws-creds"
+          # Filled in via Manage Jenkins > System > Global properties
+          # after the cloudforge-bootstrap job's first successful run —
+          # they don't exist yet on a fresh Jenkins.
+          - key: "TF_STATE_BUCKET"
+            value: "${TF_STATE_BUCKET}"
+          - key: "TF_LOCK_TABLE"
+            value: "${TF_LOCK_TABLE}"
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - aws:
+              scope: GLOBAL
+              id: "cloudforge-aws-creds"
+              accessKey: "${AWS_ACCESS_KEY_ID}"
+              secretKey: "${AWS_SECRET_ACCESS_KEY}"
+              description: "CloudForge AWS credentials for local pipeline testing"
+
+jobs:
+  - script: >
+      pipelineJob('cloudforge-bootstrap') {
+        description('One-time per-account bootstrap: Terraform state bucket, lock table, jenkins-deploy-role. Run this first.')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote { url('https://github.com/anuj-snatak/Sentry.git') }
+                branch('*/main')
+              }
+            }
+            scriptPath('jenkins/Jenkinsfile.bootstrap')
+          }
+        }
+      }
+  - script: >
+      pipelineJob('cloudforge-deploy') {
+        description('One-click CloudForge infrastructure + application deployment. Run cloudforge-bootstrap first.')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote { url('https://github.com/anuj-snatak/Sentry.git') }
+                branch('*/main')
+              }
+            }
+            scriptPath('jenkins/Jenkinsfile')
+          }
+        }
+      }

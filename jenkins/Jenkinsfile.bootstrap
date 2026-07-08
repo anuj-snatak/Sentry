@@ -1,0 +1,123 @@
+// One-time, per-AWS-account bootstrap pipeline: creates the Terraform
+// remote state S3 bucket, the DynamoDB lock table, and (optionally) the
+// jenkins-deploy-role, by applying terraform/backend. Run this exactly
+// once, before jenkins/Jenkinsfile's cloudforge-deploy pipeline can
+// succeed for any environment — every environment's backend.tf points
+// at what this job creates.
+//
+// Deliberately a separate, minimal pipeline rather than a stage folded
+// into the main Jenkinsfile: terraform/backend is a fundamentally
+// different operation (account-level, run once ever) from
+// terraform/environments/<env> (per-environment, run repeatedly), and
+// mixing the two would mean every routine deploy build carries
+// account-bootstrap parameters that make no sense for it.
+//
+// Required Jenkins credentials: none, if this Jenkins runs on an EC2
+// instance profile with permission to create the resources below.
+// Otherwise set CLOUDFORGE_BASE_AWS_CREDENTIAL_ID (see jenkins/Jenkinsfile's
+// header comment) to a Jenkins "AWS Credentials" credential ID.
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        timeout(time: 30, unit: 'MINUTES')
+    }
+
+    parameters {
+        string(name: 'PROJECT_NAME', defaultValue: 'cloudforge', description: 'Must match terraform var.project_name used by every environment')
+        string(name: 'STATE_BUCKET_NAME', defaultValue: '', description: 'Globally-unique S3 bucket name to create for Terraform state')
+        string(name: 'AWS_REGION', defaultValue: 'us-east-1', description: 'AWS region')
+        string(name: 'JENKINS_TRUSTED_PRINCIPAL_ARN', defaultValue: '', description: 'IAM principal ARN allowed to assume the created jenkins-deploy-role (this Jenkins instance\'s own identity). Leave blank to skip creating the role.')
+    }
+
+    stages {
+        stage('Validate Parameters') {
+            steps {
+                script {
+                    if (!params.STATE_BUCKET_NAME?.trim()) {
+                        error 'STATE_BUCKET_NAME is required — pick a globally-unique S3 bucket name, e.g. <project>-tf-state-<account-id>.'
+                    }
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                script {
+                    def awsParams = [region: params.AWS_REGION]
+                    if (env.CLOUDFORGE_BASE_AWS_CREDENTIAL_ID?.trim()) {
+                        awsParams.credentials = env.CLOUDFORGE_BASE_AWS_CREDENTIAL_ID
+                    }
+                    withAWS(awsParams) {
+                        dir('terraform/backend') {
+                            sh 'terraform init -input=false'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                script {
+                    def awsParams = [region: params.AWS_REGION]
+                    if (env.CLOUDFORGE_BASE_AWS_CREDENTIAL_ID?.trim()) {
+                        awsParams.credentials = env.CLOUDFORGE_BASE_AWS_CREDENTIAL_ID
+                    }
+                    def tfVars = "-var 'project_name=${params.PROJECT_NAME}' -var 'state_bucket_name=${params.STATE_BUCKET_NAME}' -var 'aws_region=${params.AWS_REGION}'"
+                    if (params.JENKINS_TRUSTED_PRINCIPAL_ARN?.trim()) {
+                        tfVars += " -var 'jenkins_trusted_principal_arns=[\"${params.JENKINS_TRUSTED_PRINCIPAL_ARN}\"]'"
+                    }
+                    withAWS(awsParams) {
+                        dir('terraform/backend') {
+                            sh "terraform plan -input=false ${tfVars} -out=bootstrap.tfplan"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Approval') {
+            steps {
+                input message: 'Apply the account bootstrap plan above? This creates real, billed AWS resources.', ok: 'Apply'
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                script {
+                    def awsParams = [region: params.AWS_REGION]
+                    if (env.CLOUDFORGE_BASE_AWS_CREDENTIAL_ID?.trim()) {
+                        awsParams.credentials = env.CLOUDFORGE_BASE_AWS_CREDENTIAL_ID
+                    }
+                    withAWS(awsParams) {
+                        dir('terraform/backend') {
+                            sh 'terraform apply -input=false bootstrap.tfplan'
+                            sh 'terraform output'
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Bootstrap complete. Copy the state_bucket_name / lock_table_name / jenkins_deploy_role_arn outputs above into TF_STATE_BUCKET / TF_LOCK_TABLE / (role ARN is derived automatically) as global Jenkins environment variables before running cloudforge-deploy.'
+        }
+        cleanup {
+            dir('terraform/backend') {
+                sh 'rm -f bootstrap.tfplan'
+            }
+        }
+    }
+}
