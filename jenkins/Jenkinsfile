@@ -86,7 +86,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                checkout()
+                checkoutSource()
             }
         }
 
