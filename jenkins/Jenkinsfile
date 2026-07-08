@@ -172,9 +172,14 @@ pipeline {
         }
 
         stage('Generate Inventory') {
+            // Must run whenever Ansible Bootstrap will (i.e. every
+            // ACTION=apply, unconditionally) — Bootstrap is baseline OS
+            // setup that isn't gated on DEPLOY_APPLICATION/DEPLOY_MONITORING,
+            // so gating inventory generation on those left Bootstrap
+            // trying to run against a hosts.yml that was never written.
             when {
                 expression {
-                    params.ROLLBACK || (params.ACTION == 'apply' && (params.DEPLOY_APPLICATION || params.DEPLOY_MONITORING))
+                    params.ROLLBACK || params.ACTION == 'apply'
                 }
             }
             steps {
