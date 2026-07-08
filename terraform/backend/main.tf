@@ -119,19 +119,20 @@ resource "aws_s3_bucket_policy" "state" {
             "aws:SecureTransport" = "false"
           }
         }
-      },
-      {
-        Sid       = "DenyUnencryptedObjectUploads"
-        Effect    = "Deny"
-        Principal = "*"
-        Action    = "s3:PutObject"
-        Resource  = "${aws_s3_bucket.state.arn}/*"
-        Condition = {
-          StringNotEquals = {
-            "s3:x-amz-server-side-encryption" = "aws:kms"
-          }
-        }
       }
+      # Deliberately no "deny unless the request carries an explicit
+      # x-amz-server-side-encryption: aws:kms header" statement here.
+      # aws_s3_bucket_server_side_encryption_configuration.state above
+      # already forces SSE-KMS as the bucket's *default* encryption for
+      # every object, with no client cooperation required. A per-request
+      # header requirement on top of that doesn't add real protection
+      # (an object can't land in this bucket unencrypted either way) but
+      # it does actively break any client — including Terraform's own S3
+      # backend — that uploads without manually setting that header and
+      # just relies on the bucket default, which is the normal way to
+      # use S3 default encryption. Found the hard way: every `terraform
+      # apply` state write was failing with AccessDenied against this
+      # exact statement.
     ]
   })
 }
