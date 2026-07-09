@@ -1,5 +1,9 @@
 ---
 security_packages:
   - fail2ban
+  # fail2ban's jail.local sets backend=systemd (journald), which needs the
+  # systemd python bindings; without this package fail2ban-server can't
+  # initialize that backend and the service never comes up.
+  - python3-systemd
   - audit
 security_audit_service: auditd
