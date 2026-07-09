@@ -32,9 +32,9 @@ variable "user_data" {
 }
 
 variable "root_volume_size" {
-  description = "Root EBS volume size in GiB."
+  description = "Root EBS volume size in GiB. Must be >= the source AMI's snapshot size or instance launch fails validation; Amazon Linux 2023's current AMI snapshot is 30 GiB."
   type        = number
-  default     = 20
+  default     = 30
 }
 
 variable "root_volume_type" {
