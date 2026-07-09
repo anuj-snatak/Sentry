@@ -37,6 +37,22 @@ variable "key_users" {
   default     = []
 }
 
+variable "additional_statements" {
+  description = <<-EOT
+    Additional raw IAM policy statement objects (JSON-policy shape,
+    appended as-is) merged into the key policy. Needed for grants
+    aws_iam_policy_document's HCL blocks don't cover here — most
+    commonly, AWS service principals that require an explicit key
+    policy statement rather than accepting IAM-side grants alone.
+    CloudWatch Logs is the canonical example: encrypting a log group
+    with a customer-managed key requires a statement for
+    logs.<region>.amazonaws.com in the key policy itself; granting
+    kms:Decrypt via an IAM policy on some role is not sufficient.
+  EOT
+  type        = list(any)
+  default     = []
+}
+
 variable "tags" {
   description = "Additional tags to merge onto the key."
   type        = map(string)

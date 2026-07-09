@@ -204,9 +204,9 @@ module "vpc_endpoints" {
 module "app_instance_role" {
   source = "../../modules/iam/ec2-instance-role"
 
-  name_prefix              = "${local.name_prefix}-app"
-  enable_ssm               = true
-  enable_cloudwatch_agent  = true
+  name_prefix             = "${local.name_prefix}-app"
+  enable_ssm              = true
+  enable_cloudwatch_agent = true
 
   # Scoped, least-privilege access to exactly the app's own secret,
   # data bucket, and DynamoDB table (declared further down this file;
@@ -247,43 +247,43 @@ module "app_instance_role" {
 module "alb" {
   source = "../../modules/compute/alb"
 
-  name_prefix         = local.name_prefix
-  vpc_id              = module.vpc.vpc_id
-  subnet_ids          = module.subnets.public_subnet_ids
-  security_group_ids  = [module.alb_security_group.security_group_id]
-  internal            = false
-  target_port         = var.app_port
-  health_check_path   = var.health_check_path
-  certificate_arn     = null # dev serves HTTP only; set this once an ACM cert exists for the domain
-  tags                = local.common_tags
+  name_prefix        = local.name_prefix
+  vpc_id             = module.vpc.vpc_id
+  subnet_ids         = module.subnets.public_subnet_ids
+  security_group_ids = [module.alb_security_group.security_group_id]
+  internal           = false
+  target_port        = var.app_port
+  health_check_path  = var.health_check_path
+  certificate_arn    = null # dev serves HTTP only; set this once an ACM cert exists for the domain
+  tags               = local.common_tags
 }
 
 module "app_launch_template" {
   source = "../../modules/compute/launch-template"
 
   name_prefix                = "${local.name_prefix}-app"
-  instance_type               = var.instance_type
-  vpc_security_group_ids      = [module.app_security_group.security_group_id]
-  iam_instance_profile_name   = module.app_instance_role.instance_profile_name
-  user_data                   = local.app_user_data
-  enable_detailed_monitoring  = false
-  tags                        = local.common_tags
+  instance_type              = var.instance_type
+  vpc_security_group_ids     = [module.app_security_group.security_group_id]
+  iam_instance_profile_name  = module.app_instance_role.instance_profile_name
+  user_data                  = local.app_user_data
+  enable_detailed_monitoring = false
+  tags                       = local.common_tags
 }
 
 module "app_autoscaling_group" {
   source = "../../modules/compute/autoscaling-group"
 
-  name_prefix              = "${local.name_prefix}-app"
-  launch_template_id       = module.app_launch_template.launch_template_id
-  launch_template_version  = module.app_launch_template.launch_template_latest_version
-  vpc_zone_identifier      = module.subnets.private_subnet_ids
-  target_group_arns        = [module.alb.target_group_arn]
-  min_size                 = var.asg_min_size
-  max_size                 = var.asg_max_size
-  desired_capacity         = var.asg_desired_capacity
-  health_check_type        = "ELB"
-  target_cpu_utilization   = 60
-  tags                     = local.common_tags
+  name_prefix             = "${local.name_prefix}-app"
+  launch_template_id      = module.app_launch_template.launch_template_id
+  launch_template_version = module.app_launch_template.launch_template_latest_version
+  vpc_zone_identifier     = module.subnets.private_subnet_ids
+  target_group_arns       = [module.alb.target_group_arn]
+  min_size                = var.asg_min_size
+  max_size                = var.asg_max_size
+  desired_capacity        = var.asg_desired_capacity
+  health_check_type       = "ELB"
+  target_cpu_utilization  = 60
+  tags                    = local.common_tags
 }
 
 # ---------------------------------------------------------------------
@@ -303,6 +303,37 @@ module "app_kms" {
   # statement already delegates authorization to IAM, so the instance
   # role's own inline kms:Decrypt/GenerateDataKey grant is sufficient —
   # no key-policy-side grant is needed as well.
+  #
+  # CloudWatch Logs is a real exception to that: unlike most services,
+  # it will not encrypt a log group with a customer-managed key on the
+  # strength of an IAM grant alone — the key policy itself must
+  # explicitly trust the logs.<region>.amazonaws.com service principal,
+  # scoped to this specific log group via the EncryptionContext
+  # condition. Found this the hard way: CreateLogGroup failed with
+  # AccessDeniedException without it.
+  additional_statements = [
+    {
+      Sid    = "AllowCloudWatchLogsEncryption"
+      Effect = "Allow"
+      Principal = {
+        Service = "logs.${var.aws_region}.amazonaws.com"
+      }
+      Action = [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:Describe*",
+      ]
+      Resource = "*"
+      Condition = {
+        ArnEquals = {
+          "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/${var.project_name}/${var.environment}/app"
+        }
+      }
+    }
+  ]
+
   tags = local.common_tags
 }
 
@@ -315,9 +346,9 @@ module "app_data_bucket" {
 
   lifecycle_rules = [
     {
-      id                                  = "expire-noncurrent-versions"
-      enabled                             = true
-      noncurrent_version_expiration_days  = 90
+      id                                 = "expire-noncurrent-versions"
+      enabled                            = true
+      noncurrent_version_expiration_days = 90
     }
   ]
 
@@ -327,12 +358,12 @@ module "app_data_bucket" {
 module "app_secret" {
   source = "../../modules/security/secrets-manager"
 
-  name                      = "${local.name_prefix}-app-secret"
-  description               = "Placeholder application secret (e.g. database credentials) for ${local.name_prefix}. Populate the real value out-of-band; Terraform only provisions the container."
-  kms_key_arn               = module.app_kms.key_arn
-  generate_random_password  = true
-  recovery_window_in_days   = 7
-  tags                      = local.common_tags
+  name                     = "${local.name_prefix}-app-secret"
+  description              = "Placeholder application secret (e.g. database credentials) for ${local.name_prefix}. Populate the real value out-of-band; Terraform only provisions the container."
+  kms_key_arn              = module.app_kms.key_arn
+  generate_random_password = true
+  recovery_window_in_days  = 7
+  tags                     = local.common_tags
 }
 
 module "app_table" {
@@ -344,8 +375,8 @@ module "app_table" {
     type = "S"
   }
   point_in_time_recovery = true
-  kms_key_arn             = module.app_kms.key_arn
-  tags                    = local.common_tags
+  kms_key_arn            = module.app_kms.key_arn
+  tags                   = local.common_tags
 }
 
 module "alerts_topic" {
@@ -365,20 +396,20 @@ module "alerts_topic" {
 module "app_observability" {
   source = "../../modules/observability/cloudwatch"
 
-  log_group_names        = ["/${var.project_name}/${var.environment}/app"]
-  log_retention_days     = 30
-  log_group_kms_key_arn  = module.app_kms.key_arn
+  log_group_names       = ["/${var.project_name}/${var.environment}/app"]
+  log_retention_days    = 30
+  log_group_kms_key_arn = module.app_kms.key_arn
 
   alarms = {
     "${local.name_prefix}-app-high-cpu" = {
       alarm_description   = "Average CPU across the app Auto Scaling Group exceeded 80% for 10 minutes."
-      metric_name          = "CPUUtilization"
-      namespace             = "AWS/EC2"
-      statistic              = "Average"
-      period                  = 300
-      evaluation_periods      = 2
-      threshold                = 80
-      comparison_operator      = "GreaterThanThreshold"
+      metric_name         = "CPUUtilization"
+      namespace           = "AWS/EC2"
+      statistic           = "Average"
+      period              = 300
+      evaluation_periods  = 2
+      threshold           = 80
+      comparison_operator = "GreaterThanThreshold"
       dimensions = {
         AutoScalingGroupName = module.app_autoscaling_group.autoscaling_group_name
       }
@@ -387,13 +418,13 @@ module "app_observability" {
     }
     "${local.name_prefix}-alb-5xx-errors" = {
       alarm_description   = "ALB returned 10+ target-origin 5xx responses in a 5 minute window."
-      metric_name          = "HTTPCode_Target_5XX_Count"
-      namespace             = "AWS/ApplicationELB"
-      statistic              = "Sum"
-      period                  = 300
-      evaluation_periods      = 1
-      threshold                = 10
-      comparison_operator      = "GreaterThanThreshold"
+      metric_name         = "HTTPCode_Target_5XX_Count"
+      namespace           = "AWS/ApplicationELB"
+      statistic           = "Sum"
+      period              = 300
+      evaluation_periods  = 1
+      threshold           = 10
+      comparison_operator = "GreaterThanThreshold"
       dimensions = {
         LoadBalancer = module.alb.alb_arn_suffix
       }
@@ -403,13 +434,13 @@ module "app_observability" {
     }
     "${local.name_prefix}-alb-unhealthy-hosts" = {
       alarm_description   = "One or more targets behind the ALB are unhealthy."
-      metric_name          = "UnHealthyHostCount"
-      namespace             = "AWS/ApplicationELB"
-      statistic              = "Average"
-      period                  = 60
-      evaluation_periods      = 3
-      threshold                = 0
-      comparison_operator      = "GreaterThanThreshold"
+      metric_name         = "UnHealthyHostCount"
+      namespace           = "AWS/ApplicationELB"
+      statistic           = "Average"
+      period              = 60
+      evaluation_periods  = 3
+      threshold           = 0
+      comparison_operator = "GreaterThanThreshold"
       dimensions = {
         LoadBalancer = module.alb.alb_arn_suffix
         TargetGroup  = module.alb.target_group_arn_suffix
