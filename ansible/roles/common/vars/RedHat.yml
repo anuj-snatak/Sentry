@@ -1,6 +1,10 @@
 ---
 common_packages:
-  - curl
+  # curl deliberately omitted: Amazon Linux 2023's AMI ships curl-minimal
+  # preinstalled, and curl-minimal explicitly conflicts with the full curl
+  # package in AL2023's repo metadata (both provide /usr/bin/curl). The
+  # /usr/bin/curl CLI from curl-minimal already covers HTTP/HTTPS, which is
+  # all this platform's health checks and scripts need.
   - wget
   - unzip
   - tar
