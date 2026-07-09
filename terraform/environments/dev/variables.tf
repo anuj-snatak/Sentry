@@ -103,6 +103,20 @@ variable "asg_desired_capacity" {
   default     = 2
 }
 
+variable "asg_health_check_type" {
+  description = <<-EOT
+    ASG health check type: "EC2" (instance status only) or "ELB" (also
+    requires the ALB target group health check on health_check_path to
+    pass). Defaults to "EC2" because ELB health checks can never pass
+    until a real application is deployed and listening on
+    health_check_path — with no app deployed, ELB checks mark every
+    instance unhealthy and the ASG replaces it forever. Switch to "ELB"
+    once DEPLOY_APPLICATION is routinely true for this environment.
+  EOT
+  type        = string
+  default     = "EC2"
+}
+
 variable "sns_subscriptions" {
   description = "Subscriptions for the alerts SNS topic, e.g. [{ protocol = \"email\", endpoint = \"ops@example.com\" }]. Left empty by default — no real destination is hardcoded."
   type = list(object({

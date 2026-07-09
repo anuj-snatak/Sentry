@@ -281,7 +281,7 @@ module "app_autoscaling_group" {
   min_size                = var.asg_min_size
   max_size                = var.asg_max_size
   desired_capacity        = var.asg_desired_capacity
-  health_check_type       = "ELB"
+  health_check_type       = var.asg_health_check_type
   target_cpu_utilization  = 60
   tags                    = local.common_tags
 }
