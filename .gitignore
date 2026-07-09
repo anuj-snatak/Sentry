@@ -56,3 +56,4 @@ secrets.yaml
 .idea/
 .vscode/
 *.swp
+.claude/
