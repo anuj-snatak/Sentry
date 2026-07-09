@@ -66,8 +66,13 @@ def describe_hosts(ec2_client: Any, instance_ids: list[str]) -> dict[str, dict]:
     return hosts
 
 
-def build_inventory(hosts: dict[str, dict]) -> dict:
-    return {"all": {"children": {"app": {"hosts": hosts}}}}
+def build_inventory(hosts: dict[str, dict], ssm_transfer_bucket_name: str) -> dict:
+    return {
+        "all": {
+            "vars": {"ansible_aws_ssm_bucket_name": ssm_transfer_bucket_name},
+            "children": {"app": {"hosts": hosts}},
+        }
+    }
 
 
 def write_inventory(inventory: dict, output_path: str) -> None:
@@ -85,6 +90,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         outputs = load_json_file(args.tf_outputs)
         asg_name = terraform_output_value(outputs, "autoscaling_group_name")
+        # community.aws.aws_ssm stages files through S3 (SSM has no native
+        # file-transfer channel); the app's own data bucket already grants
+        # the instance role read/write access, so reuse it instead of
+        # standing up a bucket dedicated to this.
+        ssm_transfer_bucket_name = terraform_output_value(outputs, "app_data_bucket_name")
     except (FileNotFoundError, ValueError, KeyError) as exc:
         logger.error(str(exc))
         return 1
@@ -116,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
             len(hosts),
         )
 
-    inventory = build_inventory(hosts)
+    inventory = build_inventory(hosts, ssm_transfer_bucket_name)
     write_inventory(inventory, args.output)
     logger.info("Wrote %d host(s) for environment '%s' to %s", len(hosts), args.environment, args.output)
     return 0

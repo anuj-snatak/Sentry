@@ -16,7 +16,10 @@ aws_region: us-east-1
 # running this locally need equivalent permissions on their own identity).
 ansible_connection: community.aws.aws_ssm
 ansible_aws_ssm_region: "{{ aws_region }}"
-ansible_aws_ssm_bucket_name: "{{ lookup('env', 'CLOUDFORGE_SSM_TRANSFER_BUCKET') }}"
+# ansible_aws_ssm_bucket_name is set per-run in the generated hosts.yml
+# (all.vars), from the Terraform app_data_bucket_name output — see
+# python/cloudforge/inventory/dynamic_inventory.py. Not hardcoded here
+# because the bucket name is account/environment-specific.
 ansible_aws_ssm_instance_id: "{{ instance_id }}"
 ansible_python_interpreter: /usr/bin/python3
 
